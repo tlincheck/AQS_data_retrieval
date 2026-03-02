@@ -36,14 +36,20 @@ data_files = sorted(glob.glob(dir + "\\data/[A]*.xlsx")) #Creates list of .xlsx 
 
 df = pd.concat([pd.read_excel(f, sheet_name='Raw Data') for f in data_files]) #List comprehension method - creates a list of Pandas DataFrame objects, which are then concatenated into one large DataFrame
 
+df.rename(columns={'Parameter' : 'Parameter Code'}, inplace=True)
 #%%
 ##### READ IN ADDITIONAL DATA TABLES #####
 # Pollutant (i.e. parameter) names
-params = pd.read_csv('parameters.csv')
+parameters_df = pd.read_csv('parameters.csv')
 
-param_names = df['Parameter']
 
 #%%
+# Merge parameters dataframe into df to match 'Parameter' names with 'Parameter Codes'
+merged_df = df.merge(parameters_df, how='inner', on='Parameter Code')
+
+#%%
+
+#Join 
 
 
 
