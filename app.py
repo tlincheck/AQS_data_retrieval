@@ -9,3 +9,10 @@ from dash import Dash, html, dcc, callback, Output, Input
 # df = pd.read_csv()
 
 
+app = Dash(__name__)
+
+# -----------------------------------------------------------------------
+
+# Import and clean dat (importing into pandas)
+df = pd.read_excel()
+
