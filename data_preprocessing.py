@@ -20,6 +20,7 @@ import openpyxl
 import glob as glob
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import plotly.express as px
 
 #%%
 ### READ IN DATA AND STORE IN PANDAS DATAFRAME ###
@@ -90,12 +91,56 @@ merged_df = merged_df1.merge(units, how='inner', on='Unit Code')
 
 #%%
 
+### SAVE MERGED DATAFRAME AS CSV FILE ###
 
+path = dir + '\\merged_data_raw.xlsx'
+# xlwriter = pd.ExcelWriter(path=path, engine='openpyxl') # mode='a'
+
+
+# merged_df.to_excel('merged_data_raw.xlsx', index=False)
+#merged_df.to_csv('merged_data_raw.csv', index=False)
+#with pd.ExcelWriter('existing_file.xlsx', mode='a', engine='openpyxl') as writer:
+#   df.to_excel(writer, sheet_name='Sheet2')
+
+
+
+
+#%%
 # Locate specific parameter given a condition
 i = 43502
 param_name = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter'].iat[0]
+param_series = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter']
+
+sample_vals = merged_df.loc[merged_df['Parameter Code'] == i, 'Sample Value']
+dates = merged_df.loc[merged_df['Parameter Code'] == i, 'Date']
+
+#dataframe for one parameter
+sample_df = merged_df.loc[merged_df['Parameter Code'] == i]
 
 # %%
+
+title = sample_df['Parameter'].iat[0]
+df['Sample Value']
+
+# x and y given as DataFrame columns
+# df = px.data_df() # iris is a pandas DataFrame
+fig = px.scatter(sample_df, x="Date", y="Sample Value", color="Site ID", title="Parameter")
+fig.show()
+
+
+
+
+# NOTES FOR DASH PLOT
+# Add a slider on bottom to filter by date range
+# Is there a way to mark Null data (if in df) or ND data???
+
+#%%
+
+
+
+
+
+
 
 ##### PREPROCESSING STEPS
 # 1. Check for duplicates - make sure that there's only 1 sample per pollutant/site/date
