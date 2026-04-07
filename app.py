@@ -109,9 +109,33 @@ def update_graph(pollutant_selection, yr_selection):
         hover_data= "Qualifier - 1",
         title=f'{param_name}') # sample_df['Parameter'].iat[0]
     
-    #fig.update_layout(xaxis_range=[1, 10], overwrite=True),
-    fig.update_xaxes(range=[f'{yr}-01-01', f'{yr}-12-31'], autorange=False, rangeslider_visible=True),
-                     #range=[timestamp1,timestamp2])
+    # BELOW LINE WORKS FOR SETTING X-RANGE!!
+    # fig.update_xaxes(range=[f'{yr}-01-01', f'{yr}-12-31'], autorange=False, rangeslider_visible=True),
+    
+    # Configure the layout with rangeselector buttons and set the default range    
+    fig.update_layout(
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1,
+                            label="1y",
+                            step="year",
+                            stepmode="backward"),
+                        dict(count=3,
+                            label="3m",
+                            step="month",
+                            stepmode="backward"),
+                        dict(step="all",
+                            label="All")
+                    ])
+                ),
+                # Explicitly set the initial x-axis range
+                range = [f'{yr}-01-01', f'{yr}-12-31'],
+                autorange = False,
+                rangeslider = dict(visible=True),
+                type="date"
+            )
+        )
     return fig
 
 
@@ -147,7 +171,7 @@ if __name__ == '__main__':
     #yr0= pollutant_df.loc[pollutant_df["Date"].dt.year == yr_selection]["Date"].min().strftime('%Y-%m-%d')
     #yr1 = pollutant_df.loc[pollutant_df["Date"].dt.year == (yr_selection+1)]["Date"].min().strftime('%Y-%m-%d')
 
-    
+# Configure the layout with rangeselector buttons and set the default range    
 fig.update_layout(
         xaxis=dict(
             rangeselector=dict(
@@ -156,16 +180,23 @@ fig.update_layout(
                         label="1y",
                         step="year",
                         stepmode="backward"),
+                    dict(count=3,
+                        label="3m",
+                        step="month",
+                         stepmode="backward"),
+                    dict(step="all",
+                        label="All")
                 ])
             ),
-            rangeslider=dict(
-                visible=True
-            ),
+            # Explicitly set the initial x-axis range
+            range = [f'{yr}-01-01', f'{yr}-12-31'],
+            autorange = False,
+            rangeslider = dict(visible=True),
             type="date"
         )
     )
 
-
+fig.update_xaxes(range=[f'{yr}-01-01', f'{yr}-12-31'], autorange=False, rangeslider_visible=True),
 
 
 

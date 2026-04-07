@@ -65,21 +65,33 @@ quals = pd.read_csv('qualifiers.csv', encoding='latin1') # qualifier codes and d
 
 # Updating 'Date' column to datetime obj (Format = YYYYMMDD)
 df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
-# df_xlsx['Date'] = pd.to_datetime(df_xlsx['Date'], format='%Y%m%d')
+df_yr_csv['Date'] = pd.to_datetime(df_yr_csv['Date'], format='%Y%m%d')
 # {1-year df} df_yr_csv['Date'] = pd.to_datetime(df_yr_csv['Date'], format='%Y%m%d', inplace='True')
 
 # Updating 'Start Time' column to datetime obj (Format = Hour:Minute:Sec)
 df['Start Time'] = pd.to_datetime(df['Start Time'], format='%H:%M')
-# df_yr_csv['Start Time'] = pd.to_datetime(df_yr_csv['Start Time'], format='%H:%M') # format='%H:%M:%S for excel df
+df_yr_csv['Start Time'] = pd.to_datetime(df_yr_csv['Start Time'], format='%H:%M') # format='%H:%M:%S for excel df
 
 # Drop 'Action Code' column since it's not needed for analysis
 df.drop(columns=["Action Code"], inplace=True)
 df_xlsx.drop(columns=["Action Code"], inplace=True)
-# df_yr_csv.drop(columns=["Action Code"])
+df_yr_csv.drop(columns=["Action Code"], inplace=True)
 
 # Rename column headers to merge with other tables
 df.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
 df_xlsx.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
+df_yr_csv.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
+#%%
+
+# Creates a mask for valid samples. Where "null data code" is NaN, returns True
+mask = df["Null Data Code"].isnull()
+dff = df[mask] # dff stands for filtered df
+
+
+df.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count'])
+
+
+
 
 
 #%%
