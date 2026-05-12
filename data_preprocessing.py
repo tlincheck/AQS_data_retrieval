@@ -61,7 +61,7 @@ units = pd.read_csv('units.csv') # Unit codes and corresponding unit names
 quals = pd.read_csv('qualifiers.csv', encoding='latin1') # qualifier codes and descriptions
 
 #%%
-### FORMAT PANDAS DATAFRAMES ###
+### FORMAT PANDAS DATAFRAMES COLUMNS ###
 
 # Updating 'Date' column to datetime obj (Format = YYYYMMDD)
 df['Date'] = pd.to_datetime(df['Date'], format='%Y%m%d')
@@ -78,19 +78,185 @@ df_xlsx.drop(columns=["Action Code"], inplace=True)
 df_yr_csv.drop(columns=["Action Code"], inplace=True)
 
 # Rename column headers to merge with other tables
-df.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
-df_xlsx.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
-df_yr_csv.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code'}, inplace=True)
+df.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code', 'Method' : 'Method Code'}, inplace=True)
+df_xlsx.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code', 'Method' : 'Method Code'}, inplace=True)
+df_yr_csv.rename(columns={'Parameter' : 'Parameter Code', 'Unit' : 'Unit Code', 'Method' : 'Method Code'}, inplace=True)
+
+
 #%%
 
-# Creates a mask for valid samples. Where "null data code" is NaN, returns True
-mask = df["Null Data Code"].isnull()
+# REMOVE SAMPLES WITH NULL DATA (Marked by Null Data Code)
+mask = df["Null Data Code"].isnull() # Creates a mask for valid samples - "null data code" == NaN returns True
 dff = df[mask] # dff stands for filtered df
 
+# REMOVE PARTICULATE SPECIATION DATA (i.e. FROM SASS INSTRUMENT) IF PRESENT IN DATA
+method_codes = dff["Method Code"].unique()
+methods_to_remove = [126, 800, 811] # List method codes to remove (126 - )
+dff_temp = dff[~dff["Method Code"].isin(methods_to_remove)] # Keep rows which do NOT contain specified method codes
 
-df.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count'])
+#### REMOVE DUPLICATE SAMPLES WHEN MORE THAN 1 PER DAY ####
+#Define lists to loop through below
+param_codes = dff_temp["Parameter Code"].unique()
+sites = dff_temp["Site ID"].unique()
+
+dffs_list = []
+
+for i in param_codes: # For each parameter & each site, 
+    # print(f"Parameter = {i}")
+    for id in sites:
+        # print the number of POC samples for each pollutant/site
+        # print(len(df.loc[(df["Parameter Code"]==i) & (df["Site ID"]==id)]["POC"].unique()))
+        n_samples = len(dff_temp.loc[(dff_temp["Parameter Code"]==i) & (dff_temp["Site ID"]==id)]["POC"].unique())
+        # print(f"Number of samples={n_samples}")
+        # print(n_samples > 1)
+ 
+        # If POC > 1, proceed to locate and remove collocated samples
+        if n_samples > 1:
+            print(n_samples)
+            print(f"Parameter {i} has collocated samples at site={id}")
+
+            # retrieve dataframe for one parameter & site
+            param_df = dff_temp.loc[(dff_temp["Parameter Code"]==i) & (dff_temp["Site ID"]==id)]
+
+            # create boolean mask where duplicate dates are marked as "True"
+            # dups_mask = dff.loc[(dff["Parameter Code"]==i) & (dff["Site ID"]==id)].duplicated(subset=["Date"])
+                    
+            # Drop duplicates/collocates
+            no_dups = dff_temp.loc[(dff_temp["Parameter Code"]==i) & (dff_temp["Site ID"]==id)].drop_duplicates(subset=["Date"], keep='first').copy()
+
+            # print(no_dups["Date"].value_counts())
+
+            # append parameter dataframe without duplicates (e.g. without POC == 7 or 8)
+            dffs_list.append(no_dups)
+
+        else:
+            # Append subsetted dataframe
+            param_df_nodups = dff_temp.loc[(dff_temp["Parameter Code"]==i) & (dff_temp["Site ID"]==id)]
+            dffs_list.append(param_df_nodups)
 
 
+# resulting df without duplicate values
+dffs = pd.concat(dffs_list, ignore_index=True)
+# result = pd.concat(dffs_temp, ignore_index=True)
+
+#%%
+
+# CHECK THAT ALL NON-DETECTS 'ND' ARE REPORTED AS ZEROS
+# TODO: Create routine to handle instances of '0's in non-detects
+non_detect_sample_vals = (dffs.loc[dffs['Qualifier - 1'] == 'ND', 'Sample Value'].unique()).astype(int)
+
+# CONVERT NEGATIVE CONCENTRATIONS TO ZERO AND FLAG ACCORDINGLY AS "ND"
+# TODO: ADD QA FLAG COLUMN 
+
+#%%
+
+# CHECK THE 1-IN-6 SCHEDULE FOR EACH POLLUTANT PER SITE
+
+# Define start and end dates of 1-in-6 schedule
+start_date = dffs['Date'].min()
+end_date = dffs['Date'].max()
+
+# Generate 6-day frequency range of dates for 1-in-6 schedule
+date_range = pd.date_range(start=start_date, end=end_date, freq='6D') # Create date range for entire period of record
+
+# For each pollutant/site, return list of Dates
+sample_dates = dffs.loc[(dffs["Parameter Code"]==12103) & (dffs["Site ID"]==1037), "Date"]
+sample_dates.sort_values(inplace=True) #by='Date,
+
+sample_dates235 = dffs.loc[(dffs["Parameter Code"]==12103) & (dffs["Site ID"]==235), "Date"]
+
+
+day_over_day = sample_dates.diff()
+
+for date in sample_dates:
+    print('Date is', date)
+
+for current, next_val in zip(dffs, dffs.shift(-1)):
+    if pd.notnull(next_val):
+        print(f"Current: {current}, Next: {next_val}")
+
+
+# For each poll
+for i in param_codes: # For each parameter & each site, 
+    # print(f"Parameter = {i}")
+    for id in sites:
+        sample_dts = dffs.loc[(dffs["Parameter Code"]==i) & (dffs["Site ID"]==id), "Date"]
+        print()
+
+
+#%%
+arsenic = dffs.loc[dffs["Parameter Code"]== 12103]
+arsenic_1037 = arsenic.loc[arsenic["Site ID"]==1037]
+
+# fig = px.scatter(arsenic_1037, x="Date", y="Sample Value", color="Site ID", title="Parameter")
+# fig.update_layout(coloraxis_showscale = False)
+# fig.show()
+
+
+
+# arsenic = df.loc[df["Parameter Code"]== 12103]
+# arsenic2 = df_new.loc[df_new["Parameter Code"]== 12103]
+
+# df.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count'])
+#%%
+
+### Cleaning version 2 ###
+
+# REMOVE METHOD CODES: 800, 811 - SASS and 126 - VOCS in ppbC 
+methods_rm = [126, 800, 811]
+method_mask = dff[~dff["Method"].isin(methods_rm)]
+
+
+### REMOVE TRIBAL SITES ###
+tribal_sites = [9000, 9001, 9009]
+deq_sites = dffs[~dffs["Site ID"].isin(tribal_sites)]
+
+
+#%%
+result.loc[(result["Parameter Code"]==12103) & (result["Site ID"]==235)]["Date"].value_counts().unique()
+
+result.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count']).max()
+
+# Check that all "ND" sample values are reported as "0"
+non_detects = result.loc[result["Qualifier - 1"] == "ND", "Sample Value"].unique()
+print(f"ND values = {non_detects}")
+
+# Convert negative samples to 
+
+
+#%%
+
+for i in param_codes:
+# print(f"Param code={i}. dtype={type(i)}")
+
+# Where condition "parameter code" = True, return parameter name and unit
+param_name_str = df.loc[df_AllYears['Parameter Code'] == i, 'Parameter Name'].iat[0] # Parameter name; str
+param_name = param_name_str.split( "(", maxsplit=1)[0]
+param_unit = df_AllYears.loc[df_AllYears['Parameter Code'] == i, 'Units of Measure'].iat[0]
+print(f"Parameter = {param_name}")
+print(f"Units = {param_unit}")
+
+# Locate groupby dataframe for parameter 'i'
+stats = df_stats.loc[i] # Annual means, max values, and counts for each 
+
+# Reset the row index
+stats.reset_index(inplace=True) # Resets index from Site Num to #; retains Site Num as column ()
+
+# Create pivot table of Annual Means for specific parameter from grouped dataframe 
+pivot = stats.pivot(index='year', columns='Site Num', values='mean')
+print(pivot)
+
+# Append pivot table to list for storage
+pivot_tables.append(pivot)
+
+
+
+df.loc[df["Parameter Code"]==12103, "Date"]
+
+# What was the number of sample values, per parameter AND per Site
+# for each distinct parameter code -- categorical data
+# for each distinct site -- categorical data
+# what was the number of samples?
 
 
 
@@ -113,8 +279,6 @@ path = dir + '\\merged_data_raw.xlsx'
 #merged_df.to_csv('merged_data_raw.csv', index=False)
 #with pd.ExcelWriter('existing_file.xlsx', mode='a', engine='openpyxl') as writer:
 #   df.to_excel(writer, sheet_name='Sheet2')
-
-
 
 
 #%%
