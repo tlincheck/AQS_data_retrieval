@@ -25,7 +25,10 @@ dropdown_options = [{'label': v, 'value': k} for k, v in df_dict.items()]
 # Formatting parameters for dcc.RangeSlider
 dateMin = dfr['Date'].min()
 dateMax = dfr['Date'].max()
-yr_dropdown_opts = {str(year): int(year) for year in dfr['Date'].dt.year.unique()}
+year_options = sorted(dfr['Date'].dt.year.unique())
+yr_dropdown_options = [{'label': 'All', 'value': 'All'}] + [
+    {'label': str(year), 'value': int(year)} for year in year_options
+]
 
 
 
@@ -46,7 +49,7 @@ title1 = sample_df['Parameter'].iat[0]
 dfr['Sample Value']
 
 # x and y given as DataFrame columns
-# Prepare an initial figure to show on first load using the dataset full date range
+# df = px.data_df() # iris is a pandas DataFrame
 initial_fig = px.scatter(sample_df, x="Date", y="Sample Value", color="Site ID")
 initial_fig.update_xaxes(
     range=[dateMin, dateMax],
@@ -54,8 +57,6 @@ initial_fig.update_xaxes(
     rangeslider_visible=True,
     type='date'
 )
-fig = initial_fig
-#fig.show()
 
 # Initialize the app
 app = Dash()
@@ -74,8 +75,8 @@ app.layout = html.Div(children=[
 
     dcc.Dropdown(
         id='yr-dropdown-menu',
-        options = yr_dropdown_opts,
-        value = list(yr_dropdown_opts.values())[-2],
+        options=yr_dropdown_options,
+        value='All',
         multi=False,
         ),
 
@@ -84,9 +85,9 @@ app.layout = html.Div(children=[
 
     dcc.Graph(
         id='param-scatter-plot',
-        figure=fig,
+        figure=initial_fig,
         style={'height': '80vh', 'width': '100%'} # Set height/width of the container
-        ), #=fig),
+        ),
 
     html.Div(id='range-slider-container'),
 
@@ -103,6 +104,9 @@ app.layout = html.Div(children=[
 def update_graph(pollutant_selection, yr_selection):
     # Retrieve df for selected parameter and make an explicit copy
     pollutant_df = dfr.loc[dfr['Parameter Code'] == pollutant_selection].copy()
+    if yr_selection != 'All':
+        pollutant_df = pollutant_df.loc[pollutant_df['Date'].dt.year == int(yr_selection)].copy()
+
     if pollutant_df.empty:
         return px.scatter(title='No data available for selected parameter')
 
@@ -118,24 +122,34 @@ def update_graph(pollutant_selection, yr_selection):
         symbol="Site ID",
         hover_data= "Qualifier - 1",
         title=f'{param_name}') # sample_df['Parameter'].iat[0]
+
+    if yr_selection == 'All':
+        x_range = [dateMin, dateMax]
+    else:
+        x_range = [f'{yr}-01-01', f'{yr}-12-31']
     
-    # BELOW LINE WORKS FOR SETTING X-RANGE!!
-    # fig.update_xaxes(range=[f'{yr}-01-01', f'{yr}-12-31'], autorange=False, rangeslider_visible=True),
-    
-    # Ensure the x-axis initially shows the full dataset and provide range selector buttons
     fig.update_xaxes(
-        range=[dateMin, dateMax],
+        range=x_range,
         autorange=False,
         rangeslider_visible=True,
         type='date'
     )
+
+    # Add the range selector buttons without overriding the explicit date range
     fig.update_layout(
         xaxis=dict(
             rangeselector=dict(
                 buttons=list([
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
-                    dict(count=3, label="3m", step="month", stepmode="backward"),
-                    dict(step="all", label="All"),
+                    dict(count=1,
+                        label="1y",
+                        step="year",
+                        stepmode="backward"),
+                    dict(count=3,
+                        label="3m",
+                        step="month",
+                        stepmode="backward"),
+                    dict(step="all",
+                        label="All")
                 ])
             )
         )
@@ -193,7 +207,7 @@ fig.update_layout(
                 ])
             ),
             # Explicitly set the initial x-axis range
-            range = [f'{yr}-01-01', f'{yr}-12-31'],
+            range = [f'{dateMin.year}-01-01', f'{dateMax.year}-12-31'],
             autorange = False,
             rangeslider = dict(visible=True),
             type="date"

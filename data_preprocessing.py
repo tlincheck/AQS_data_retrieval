@@ -4,6 +4,9 @@
 # Calculate quarterly averages by pollutant/site/sampling duration
 #       Requires 24hr sample data
 # calculate annual averages from 24hr data (requires quarterly averages)
+
+
+
 # ------------------------------------------------------------------
 
 #%%  
@@ -59,6 +62,9 @@ df = pd.concat([pd.read_csv(f, sep='|', skiprows=[1], engine='python', skipfoote
 parameters = pd.read_csv('parameters.csv') # Pollutant (i.e. parameter) names
 units = pd.read_csv('units.csv') # Unit codes and corresponding unit names
 quals = pd.read_csv('qualifiers.csv', encoding='latin1') # qualifier codes and descriptions
+methods_haps = pd.read_csv('methods_haps.csv') # method codes and descriptions for HAPs
+MAAC_values = pd.read_csv('MAAC_values.csv') # MAAC values for each pollutant
+MAAC_values["Parameter Code"] = MAAC_values["Parameter Code"].astype('Int64')  # Convert parameter code to int to match dataframes
 
 #%%
 ### FORMAT PANDAS DATAFRAMES COLUMNS ###
@@ -159,73 +165,85 @@ end_date = dffs['Date'].max()
 # Generate 6-day frequency range of dates for 1-in-6 schedule
 date_range = pd.date_range(start=start_date, end=end_date, freq='6D') # Create date range for entire period of record
 
-# For each pollutant/site, return list of Dates
-sample_dates = dffs.loc[(dffs["Parameter Code"]==12103) & (dffs["Site ID"]==1037), "Date"]
-sample_dates.sort_values(inplace=True) #by='Date,
+# Evaluate each entry of dffs['Date'] and return True if that value is in the 1-in-6 schedule; False if not
+dffs['Date'].isin(date_range) 
 
-sample_dates235 = dffs.loc[(dffs["Parameter Code"]==12103) & (dffs["Site ID"]==235), "Date"]
-
-
-day_over_day = sample_dates.diff()
-
-for date in sample_dates:
-    print('Date is', date)
-
-for current, next_val in zip(dffs, dffs.shift(-1)):
-    if pd.notnull(next_val):
-        print(f"Current: {current}, Next: {next_val}")
-
-
-# For each poll
-for i in param_codes: # For each parameter & each site, 
-    # print(f"Parameter = {i}")
-    for id in sites:
-        sample_dts = dffs.loc[(dffs["Parameter Code"]==i) & (dffs["Site ID"]==id), "Date"]
-        print()
-
+# Create new column to flag samples that do not match 1-in-6 schedule; True = sample does NOT match schedule;
+dffs['Makeup Sample'] = ~(dffs['Date'].isin(date_range)) #  False = sample matches 1-in-6 schedule
 
 #%%
-arsenic = dffs.loc[dffs["Parameter Code"]== 12103]
-arsenic_1037 = arsenic.loc[arsenic["Site ID"]==1037]
 
-# fig = px.scatter(arsenic_1037, x="Date", y="Sample Value", color="Site ID", title="Parameter")
-# fig.update_layout(coloraxis_showscale = False)
-# fig.show()
+# CONVERT NEGATIVE SAMPLE VALUES TO ZERO AND FLAG AS "ND"
 
+# If sample value is negative, flag as "ND"; else flag as "Valid"
+dffs["Sample Value Flag"] = np.where(dffs["Sample Value"] < 0.0, "ND", "Valid") 
 
+# If sample value is negative, convert to 0; else keep original value
+dffs["Sample Value"] = np.where(dffs["Sample Value"] < 0.0, 0.0, dffs["Sample Value"]) # np.where(condition, value_if_true, value_if_false)
 
-# arsenic = df.loc[df["Parameter Code"]== 12103]
-# arsenic2 = df_new.loc[df_new["Parameter Code"]== 12103]
 
 # df.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count'])
 #%%
 
-### Cleaning version 2 ###
+### MERGE DATA TABLES INTO PANDAS DATAFRAME ###
+ 
+# Merge parameters dataframe into dffs to match 'Parameter' names with 'Parameter Codes'
+merged_params = pd.merge(dffs, parameters, how='inner', on='Parameter Code')
+merged_units = merged_params.merge(units, how='inner', on='Unit Code') # Merge units df into sample df
 
-# REMOVE METHOD CODES: 800, 811 - SASS and 126 - VOCS in ppbC 
-methods_rm = [126, 800, 811]
-method_mask = dff[~dff["Method"].isin(methods_rm)]
+merged_dffs = merged_units.merge(MAAC_values[['Parameter Code', 'MAAC ppb', 'MAAC ug/m3', 'Type']],\
+                                  how='left', on='Parameter Code') # Merge MAAC values into sample df; use left join to keep all rows in sample df
 
 
-### REMOVE TRIBAL SITES ###
-tribal_sites = [9000, 9001, 9009]
-deq_sites = dffs[~dffs["Site ID"].isin(tribal_sites)]
+### SORT THE COLUMNS IN THE DESIRED ORDER ###
+cols_list = merged_dffs.columns.tolist()
+
+post_dff = merged_dffs[['# RD',
+                    'State Code', 'County Code', 'Site ID', 'Parameter Code', 'Parameter', \
+                    'Parameter Abbreviation','Parameter Alternate Name', 'CAS Number', 'POC', \
+                    'Sample Duration','Unit Code', 'Units', 'Method Code', 'Date', 'Start Time',\
+                    'Sample Value', 'Null Data Code','Sampling Frequency', 'Qualifier - 1', \
+                    'Qualifier - 2', 'Qualifier - 3', 'Alternate Method Detectable Limit',\
+                    'Makeup Sample','Standard Units','Still Valid','Round or Truncate',\
+                    'MAAC ppb', 'MAAC ug/m3', 'Type']].copy()
+
+# Omitting  following columns:
+# 'Monitor Protocol (MP) ID', 'Qualifier - 4',
+# 'Qualifier - 5',
+# 'Qualifier - 6',
+# 'Qualifier - 7',
+# 'Qualifier - 8',
+# 'Qualifier - 9',
+# 'Qualifier - 10',
+# 'Uncertainty',
+
+#%%
+
+### SAVE POST_PROCESSED DATAFRAME TO CSV ###
+
+
+path = dir + '\\merged_data_processed.xlsx'
+post_dff.to_excel('merged_data_processed.xlsx', index=False)
+post_dff.to_csv('merged_data_processed.csv', index=False)
+
+#%%
+
+### SAVE RAW MERGED DATAFRAME AS CSV FILE ###
+
+path = dir + '\\merged_data_raw.xlsx'
+# xlwriter = pd.ExcelWriter(path=path, engine='openpyxl') # mode='a'
+
+
+# merged_df.to_excel('merged_data_raw.xlsx', index=False)
+#merged_df.to_csv('merged_data_raw.csv', index=False)
+#with pd.ExcelWriter('existing_file.xlsx', mode='a', engine='openpyxl') as writer:
+#   df.to_excel(writer, sheet_name='Sheet2')
+
+
 
 
 #%%
-result.loc[(result["Parameter Code"]==12103) & (result["Site ID"]==235)]["Date"].value_counts().unique()
-
-result.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count']).max()
-
-# Check that all "ND" sample values are reported as "0"
-non_detects = result.loc[result["Qualifier - 1"] == "ND", "Sample Value"].unique()
-print(f"ND values = {non_detects}")
-
-# Convert negative samples to 
-
-
-#%%
-
+'''
 for i in param_codes:
 # print(f"Param code={i}. dtype={type(i)}")
 
@@ -258,63 +276,22 @@ df.loc[df["Parameter Code"]==12103, "Date"]
 # for each distinct site -- categorical data
 # what was the number of samples?
 
-
-
-#%%
-### MERGE DATA TABLES INTO PANDAS DATAFRAME ###
-
-# Merge parameters dataframe into df to match 'Parameter' names with 'Parameter Codes'
-merged_df1 = df.merge(parameters, how='inner', on='Parameter Code')
-merged_df = merged_df1.merge(units, how='inner', on='Unit Code')
+'''
 
 #%%
-
-### SAVE MERGED DATAFRAME AS CSV FILE ###
-
-path = dir + '\\merged_data_raw.xlsx'
-# xlwriter = pd.ExcelWriter(path=path, engine='openpyxl') # mode='a'
-
-
-# merged_df.to_excel('merged_data_raw.xlsx', index=False)
-#merged_df.to_csv('merged_data_raw.csv', index=False)
-#with pd.ExcelWriter('existing_file.xlsx', mode='a', engine='openpyxl') as writer:
-#   df.to_excel(writer, sheet_name='Sheet2')
-
-
-#%%
-# Locate specific parameter given a condition
-i = 43502
-param_name = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter'].iat[0]
-param_series = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter']
-
-sample_vals = merged_df.loc[merged_df['Parameter Code'] == i, 'Sample Value']
-dates = merged_df.loc[merged_df['Parameter Code'] == i, 'Date']
-
-#dataframe for one parameter
-sample_df = merged_df.loc[merged_df['Parameter Code'] == i]
 
 # %%
 
-title = sample_df['Parameter'].iat[0]
-df['Sample Value']
+# title = sample_df['Parameter'].iat[0]
+# df['Sample Value']
 
 # x and y given as DataFrame columns
 # df = px.data_df() # iris is a pandas DataFrame
-fig = px.scatter(sample_df, x="Date", y="Sample Value", color="Site ID", title="Parameter")
-fig.show()
+# fig = px.scatter(sample_df, x="Date", y="Sample Value", color="Site ID", title="Parameter")
+# fig.show()
 
-
-
-
-# NOTES FOR DASH PLOT
-# Add a slider on bottom to filter by date range
-# Is there a way to mark Null data (if in df) or ND data???
 
 #%%
-
-
-
-
 
 
 
@@ -343,5 +320,34 @@ def daily2annual():
 # data_dir = r"C:\Users\378306\OneDrive - State of Oklahoma\\ToxicsData"
 
 # Old code to search directory for .xlsx data files 
-files_xlsx = [f for f in filedir if (f[-3:] == 'xls' or f[-4:] == 'xlsx') & (not f.startswith(('~$','MA', 'stats')))]
-print(files_xlsx)
+# files_xlsx = [f for f in filedir if (f[-3:] == 'xls' or f[-4:] == 'xlsx') & (not f.startswith(('~$','MA', 'stats')))]
+# print(files_xlsx)
+
+
+# REMOVE METHOD CODES: 800, 811 - SASS and 126 - VOCS in ppbC 
+# methods_rm = [126, 800, 811]
+# method_mask = dff[~dff["Method"].isin(methods_rm)]
+
+
+### REMOVE TRIBAL SITES ###
+# tribal_sites = [9000, 9001, 9009]
+# deq_sites = dffs[~dffs["Site ID"].isin(tribal_sites)] 
+
+# result.loc[(result["Parameter Code"]==12103) & (result["Site ID"]==235)]["Date"].value_counts().unique()
+
+# result.groupby(["Parameter Code", "Site ID", "Date"])["Date"].agg(['count']).max()
+
+# Check that all "ND" sample values are reported as "0"
+# non_detects = result.loc[result["Qualifier - 1"] == "ND", "Sample Value"].unique()
+# print(f"ND values = {non_detects}")
+
+# # Locate specific parameter given a condition
+# i = 43502
+# param_name = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter'].iat[0]
+# param_series = merged_df.loc[merged_df['Parameter Code'] == i, 'Parameter']
+
+# sample_vals = merged_df.loc[merged_df['Parameter Code'] == i, 'Sample Value']
+# dates = merged_df.loc[merged_df['Parameter Code'] == i, 'Date']
+
+#dataframe for one parameter
+# sample_df = merged_df.loc[merged_df['Parameter Code'] == i]
