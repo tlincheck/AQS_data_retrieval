@@ -28,8 +28,6 @@ dateMax = dfr['Date'].max()
 yr_dropdown_opts = {str(year): int(year) for year in dfr['Date'].dt.year.unique()}
 
 
-
-
 mark_values = dfr['Date'].dt.year.unique()
 mark_dict = pd.Series(dfr['Date'].dt.year.unique(), index=dfr['Date'].dt.year.unique()).to_dict()
 mark_opts = [{'label': v, 'value': k} for k, v in mark_dict.items()]

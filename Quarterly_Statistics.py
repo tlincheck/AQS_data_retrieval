@@ -83,11 +83,44 @@ quarter_stats = quarterly_stats.merge(df[['Year', 'Quarter', 'Parameter', 'Site 
                                         how='left')   #  
 
 
+#%%
 
+### Calculate 95% confidence intervals for the quarterly means
 
+from scipy import stats
+from scipy.stats import t as t_dist
 
+# Function to calculate 95% confidence interval for a group
+def calculate_ci_95(group):
+    """Calculate 95% confidence interval for a sample"""
+    n = len(group)
+    if n < 2:  # Need at least 2 samples for CI
+        return np.nan, np.nan
 
+    mean = group.mean()
+    std = group.std(ddof=1)  # ddof=1 for sample std dev
+    
+    # Get critical t-value (95% CI, n-1 degrees of freedom)
+    t_critical = stats.t.ppf(0.975, df=n-1)  # 0.975 for two-tailed 95% CI
+    
+    # Calculate margin of error
+    margin_error = t_critical * (std / np.sqrt(n))
+    
+    ci_lower = mean - margin_error
+    ci_upper = mean + margin_error
+    
+    return ci_lower, ci_upper
 
+# Option 1: Add CI bounds directly to quarterly_stats
+quarterly_stats[['CI_Lower_95', 'CI_Upper_95']] = quarterly_stats.apply(
+    lambda row: pd.Series(calculate_ci_95(
+        df[(df['Year'] == row['Year']) & 
+           (df['Quarter'] == row['Quarter']) & 
+           (df['Parameter'] == row['Parameter']) & 
+           (df['Site ID'] == row['Site ID'])]['Sample Value']
+    )), axis=1
+)
+# quarterly_stats['CI_Width'] = quarterly_stats['CI_Upper_95'] - quarterly_stats['CI_Lower_95']
 
 #%%
 
@@ -106,6 +139,52 @@ mdls = df.groupby(['Year', 'Parameter', 'Site ID']).agg(
     min_MDL=('Alternate Method Detectable Limit', 'min'),
     max_MDL=('Alternate Method Detectable Limit', 'max')
 ).reset_index()
+
+
+#%%
+# Function to calculate 95% CI for quarterly data
+# # Option 2: More efficient approach
+def calculate_group_ci(group):
+    """Calculate CI for grouped data"""
+    values = group['Sample Value'].dropna()
+    print(values)
+    n = len(values)
+    print(f"n={n} samples")
+    
+    if n < 2: # If less than 2 samples
+        return pd.Series({
+            'Mean': np.nan,
+            'Std': np.nan,
+            'CI_Lower_95': np.nan,
+            'CI_Upper_95': np.nan,
+            'Count': n,
+        })
+    
+    mean = values.mean()
+    std = values.std(ddof=1)
+    
+    # scipy.stats.t.interval returns (lower, upper)
+    ci_lower, ci_upper = t_dist.interval(
+        confidence=0.95,
+        df=n-1,
+        loc=mean,
+        scale=std/np.sqrt(n)
+    )
+    
+    return pd.Series({
+        'CI_Lower_95': ci_lower,
+        'CI_Upper_95': ci_upper,
+        'Mean': mean,
+        'Std': std,
+        'Count': n,
+    })
+
+# Apply to each group
+ci_stats = df.groupby(['Year', 'Quarter', 'Parameter', 'Site ID']).apply(
+    calculate_group_ci).unstack().reset_index()
+
+
+
 
 #%%
 

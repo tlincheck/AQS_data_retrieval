@@ -204,8 +204,8 @@ post_dff = merged_dffs[['# RD',
                     'Sample Duration','Unit Code', 'Units', 'Method Code', 'Date', 'Start Time',\
                     'Sample Value', 'Null Data Code','Sampling Frequency', 'Qualifier - 1', \
                     'Qualifier - 2', 'Qualifier - 3', 'Alternate Method Detectable Limit',\
-                    'Makeup Sample','Standard Units','Still Valid','Round or Truncate',\
-                    'MAAC ppb', 'MAAC ug/m3', 'Type']].copy()
+                    'Makeup Sample','Standard Units','Round or Truncate',\
+                    'MAAC ppb', 'MAAC ug/m3', 'Type']].copy() # Removed 'Still Valid' column from parameter table
 
 # Omitting  following columns:
 # 'Monitor Protocol (MP) ID', 'Qualifier - 4',

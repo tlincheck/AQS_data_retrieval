@@ -60,6 +60,8 @@ pollutant_df =df[(pd.to_datetime(df['Date']).dt.year == yr) &
 
 qt_data = quarterly_stats.loc[(quarterly_stats['Year']==2025) & (quarterly_stats['Parameter']=='Formaldehyde')].copy()
 
+qt_data['Site ID'] = qt_data['Site ID'].astype(str)
+
 
 fig = px.box(pollutant_df, x="Quarter_Number", y="Sample Value", color="Site ID", points="all")
 fig.show()
@@ -75,7 +77,23 @@ fig3.show()
 # Get existing legend handles and labels to preserve box colors
 handles, labels = plt.axes.get_legend_handles_labels()
 
+px.histogram(
+    data_frame=pollutant_df, 
+    barmode='group', 
+    x="Quarter_Number", 
+    y="Sample Value", 
+    color="Site ID")
+    # labels={'Sample Value': 'Value'})
 
+
+fig_bar = px.bar(
+    data_frame=qt_data,  
+    x="Quarter_Number", 
+    y="Sample_Average",
+    barmode='group',
+    color="Site ID",
+    labels={'Sample_Average': 'Sample_Average'}, height=400)
+fig_bar.show()
 
 #%%
 # Plotting comparison of sites by quarter for one pollutant and year
