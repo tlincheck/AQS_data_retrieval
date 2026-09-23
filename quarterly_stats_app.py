@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px # For plotting
 import dash_ag_grid as dag # For interactive data tables
 import numpy as np
+import requests
 import xarray as xr
 import pandas as pd
 import openpyxl
@@ -43,8 +44,25 @@ df['Year'] = pd.to_datetime(df['Date']).dt.year
 quarterly_stats = df.groupby(['Year', 'Quarter_Number', 'Parameter', 'Site ID']).agg(
     Sample_Average=('Sample Value', 'mean'),
     Sample_Max=('Sample Value', 'max'),
-    Sample_Count=('Sample Value', 'count')
-).reset_index() 
+    Sample_Count=('Sample Value', 'count'),
+    Sample_Std=('Sample Value', 'std'), # sample standard deviation
+    Sample_sem=('Sample Value', 'sem') # standard error of the mean
+    ).reset_index() 
+
+
+# Calculate the t-value for 95% confidence interval based on sample size
+from scipy import stats 
+t_value = stats.t.ppf(0.975, df=quarterly_stats['Sample_Count'] - 1)  # two-tailed # 0.975 corresponds to (1 - alpha/2)
+
+# Calculate the margin of error for the confidence interval
+margin_of_error = t_value * (quarterly_stats['Sample_Std'] / np.sqrt(quarterly_stats['Sample_Count']))
+
+# Calculate confidence intervals for each site and quarter
+#quarterly_stats['Sample_CI_Lower'] = quarterly_stats['Sample_Average'] - 1.96 * (quarterly_stats['Sample_Std'] / np.sqrt(quarterly_stats['Sample_Count']))
+quarterly_stats['Sample_CI_Lower'] = quarterly_stats['Sample_Average'] - margin_of_error
+quarterly_stats['Sample_CI_Upper'] = quarterly_stats['Sample_Average'] + margin_of_error
+
+
 
 #%%
 
@@ -62,14 +80,39 @@ qt_data = quarterly_stats.loc[(quarterly_stats['Year']==2025) & (quarterly_stats
 
 qt_data['Site ID'] = qt_data['Site ID'].astype(str)
 
+# Plot pollutant_df with confidence intervals for each site and quarter
 
+#%%
+
+# Fetch US County GeoJSON data and filter for Oklahoma (FIPS state code: '40')
+import plotly.graph_objects as go
+
+fig = go.Figure(go.Scattergeo())
+fig.update_geos(
+    visible=False, resolution=50, scope="usa", # 'north america'
+    showcountries=True, countrycolor="Black",
+    showsubunits=True, subunitcolor="Blue"
+)
+fig.update_layout(height=300, margin={"r":0,"t":0,"l":0,"b":0})
+fig.show()
+
+#%%
+
+# Plotting data from each site by quarter on x axis
 fig = px.box(pollutant_df, x="Quarter_Number", y="Sample Value", color="Site ID", points="all")
 fig.show()
 
-# Plotting Quarter Numbers on x axis, with grouped sites
-fig2 = sns.boxplot(data=pollutant_df, x="Quarter_Number", y="Sample Value", hue="Site ID", points="all")
-fig2.show()
 
+ #%%
+ 
+# Plotting Quarter Numbers on x axis, with grouped sites
+fig2 = sns.boxplot(data=pollutant_df, x="Quarter_Number", y="Sample Value", hue="Site ID",
+                   notch=True) #  points="all"
+# fig2.show()
+
+
+
+#%%
 # Plotting Sites on x axis, with grouped quarters
 fig3 = px.box(pollutant_df, x="Site ID", y="Sample Value", color="Quarter_Number", points="all")
 fig3.show()
@@ -85,6 +128,8 @@ px.histogram(
     color="Site ID")
     # labels={'Sample Value': 'Value'})
 
+
+#%%
 
 fig_bar = px.bar(
     data_frame=qt_data,  

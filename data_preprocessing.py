@@ -116,7 +116,7 @@ for i in param_codes: # For each parameter & each site,
         # print(f"Number of samples={n_samples}")
         # print(n_samples > 1)
  
-        # If POC > 1, proceed to locate and remove collocated samples
+        # If len(POC) > 1, proceed to locate and remove collocated samples
         if n_samples > 1:
             print(n_samples)
             print(f"Parameter {i} has collocated samples at site={id}")
@@ -238,6 +238,43 @@ path = dir + '\\merged_data_raw.xlsx'
 #merged_df.to_csv('merged_data_raw.csv', index=False)
 #with pd.ExcelWriter('existing_file.xlsx', mode='a', engine='openpyxl') as writer:
 #   df.to_excel(writer, sheet_name='Sheet2')
+
+
+
+
+#%%
+### ADD LAT AND LON COLUMNS TO DATAFRAME ###
+
+# Read in AMP350 Site Monitor page for all years
+data_files = sorted(glob.glob(dir + "\\data\\AMP350\\[A]*.xlsx")) #Create list of .xlsx files in data directory; [! ] tells glob to ignore specified symbols
+
+# Concatenate all years of data
+df_xlsx = pd.concat([pd.read_excel(f, sheet_name='Raw Data', skipfooter=1) for f in data_files]) # 'skipfooter' skips the comment line at the bottom of each xlsx file
+
+
+site_loc_xls = sorted(glob.glob(dir + f"\\data\\AMP350\\AMP350_{yr}.xlsx"))
+locations = pd.read_excel(site_loc_xls[0], sheet_name='Site Monitor',\
+                           na_values=[], keep_default_na=False, skipfooter=1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

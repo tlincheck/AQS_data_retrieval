@@ -4,6 +4,7 @@ import plotly.express as px
 import dash_bootstrap_components as dbc
 import pandas as pd
 import numpy as np
+from scipy import stats 
 from scipy.stats import t as t_dist
 
 # Incorporate the data
@@ -27,8 +28,25 @@ df['Year'] = pd.to_datetime(df['Date']).dt.year
 quarterly_stats = df.groupby(['Year', 'Quarter_Number', 'Parameter', 'Site ID']).agg(
     Sample_Average=('Sample Value', 'mean'),
     Sample_Max=('Sample Value', 'max'),
-    Sample_Count=('Sample Value', 'count')
+    Sample_Count=('Sample Value', 'count'),
+    Sample_Std=('Sample Value', 'std'), # sample standard deviation (SEM)
+    Sample_sem=('Sample Value', 'sem') # standard error of the mean
 ).reset_index() 
+
+# Confidence Interval (CI) Calculation:
+# CI = sample mean ± (t-value * SEM))
+# SEM = sample standard deviation / sqrt(sample size)
+
+# Calculate the t-value for 95% confidence interval based on sample size
+t_value = stats.t.ppf(0.975, df=quarterly_stats['Sample_Count'] - 1)  # two-tailed # 0.975 corresponds to (1 - alpha/2)
+
+# Calculate the margin of error for the confidence interval
+margin_of_error = t_value * (quarterly_stats['Sample_Std'] / np.sqrt(quarterly_stats['Sample_Count']))
+
+# Calculate confidence intervals for each site and quarter
+# quarterly_stats['Sample_CI_Lower'] = quarterly_stats['Sample_Average'] - 1.96 * (quarterly_stats['Sample_Std'] / np.sqrt(quarterly_stats['Sample_Count']))
+quarterly_stats['Sample_CI_Lower'] = quarterly_stats['Sample_Average'] - margin_of_error
+quarterly_stats['Sample_CI_Upper'] = quarterly_stats['Sample_Average'] + margin_of_error
 
 
 #%% # Function to calculate 95% CI for quarterly data
